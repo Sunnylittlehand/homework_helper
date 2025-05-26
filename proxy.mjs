@@ -1,7 +1,11 @@
+
 import express from 'express';
 import fetch from 'node-fetch';
 import cors from 'cors';
 import Database from 'better-sqlite3';
+import twilio from 'twilio';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const app = express();
 app.use(cors());
@@ -42,12 +46,7 @@ function getLatestParentReply() {
   return db.prepare('SELECT * FROM parent_reply LIMIT 1').get();
 }
 
-import express from 'express';
-import fetch from 'node-fetch';
-import cors from 'cors';
 
-app.use(cors());
-app.use(express.json());
 
 // Endpoint to set parent homework override
 app.post('/api/parent-homework-override', (req, res) => {
