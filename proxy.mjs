@@ -3,9 +3,7 @@ import express from 'express';
 import fetch from 'node-fetch';
 import cors from 'cors';
 import Database from 'better-sqlite3';
-import twilio from 'twilio';
-import dotenv from 'dotenv';
-dotenv.config();
+
 
 const app = express();
 app.use(cors());
