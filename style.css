@@ -1,10 +1,71 @@
 body {
-    font-family: Arial, sans-serif;
-    background: #f9f9f9;
-    color: #222;
+    font-family: 'Comic Sans MS', 'Comic Sans', 'Chalkboard SE', 'Comic Neue', cursive, sans-serif;
+    background: linear-gradient(135deg, #0f2027 0%, #2c5364 50%, #1e3c72 100%);
+    color: #f0f8ff;
     margin: 0;
     padding: 2rem;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
 }
+
+h1, p, #getHomeworkBtn, #homeworkDisplay, #chatbotSection {
+    text-align: center;
+}
+
+#getHomeworkBtn {
+    font-size: 2.5rem;
+    padding: 1rem 2.5rem;
+    border-radius: 1.5rem;
+    background: #7ecfff;
+    color: #0f2027;
+    border: none;
+    box-shadow: 0 4px 16px rgba(30,60,114,0.15);
+    cursor: pointer;
+    margin: 1.5rem 0;
+    transition: background 0.2s, transform 0.2s;
+}
+#getHomeworkBtn:hover {
+    background: #4eb5e5;
+    transform: scale(1.05);
+}
+
 h1 {
-    color: #007acc;
+    color: #7ecfff;
+    text-shadow: 0 2px 8px #0f2027;
+    font-family: 'Comic Sans MS', 'Comic Sans', 'Chalkboard SE', 'Comic Neue', cursive, sans-serif;
+    letter-spacing: 2px;
+    font-size: 3rem;
+    font-weight: bold;
+}
+
+body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    background: url('https://www.transparenttextures.com/patterns/stardust.png');
+    opacity: 0.25;
+    z-index: 0;
+}
+
+#chatbotSection {
+ß    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+}
+
+#homeworkDisplay {
+    max-width: 900px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+    text-align: left;
+}
+#homeworkDisplay ul {
+    text-align: left;
+    margin-left: 2.5em;
 }

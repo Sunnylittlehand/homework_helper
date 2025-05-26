@@ -3,21 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hello World Website</title>
+    <title>Freddie's Homework Helper</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>Homework Helper</h1>
+    <h1>Freddie's Homework Helper</h1>
     <p>Welcome! Click the button below to get your homework for today.</p>
+
+
+
     <button id="getHomeworkBtn">Get Today's Homework</button>
     <div id="homeworkDisplay" style="margin-top:2rem;"></div>
 
     <hr style="margin:2rem 0;">
     <div id="chatbotSection">
-        <h2>Ask the Homework Chatbot</h2>
-        <div id="chatDisplay" style="background:#f1f1f1;min-height:120px;padding:1rem;margin-bottom:1rem;border-radius:8px;max-width:500px;"></div>
-        <input type="text" id="chatInput" placeholder="Type your question..." style="width:70%;padding:0.5rem;">
-        <button id="sendChatBtn">Send</button>
+        <h2>
+            <span style="vertical-align: middle;">
+                <img src="https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/1f916.png" alt="Chatbot" style="width:36px;height:36px;vertical-align:middle;margin-right:8px;" />
+            </span>
+            Ask the Homework Chatbot
+        </h2>
+        <div style="font-size:1.1rem;margin-bottom:1rem;">
+            <strong>
+                Freddie, you can ask me about your homework of the day, whether you can play games,<br>
+                and about your remaining work by telling me what you have completed, or whether you can eat something.
+            </strong>
+            <ul style="list-style: disc inside; text-align:left; max-width:600px; margin:0 auto;">
+                <li><span>What's my homework today?</span> <span style="color:#7ecfff;">(I'll tell you your homework for today!)</span></li>
+                <li><span>Can I play Minecraft now?</span> <span style="color:#7ecfff;">(I'll check if you finished your homework and if it's the weekend!)</span></li>
+                <li><span>Have I finished all my homework?</span> <span style="color:#7ecfff;">(I'll remind you what you still need to do.)</span></li>
+                <li><span>What are my vocabulary words?</span> <span style="color:#7ecfff;">(I'll show you your new words for today!)</span></li>
+                <li><span>What mental maths do I have?</span> <span style="color:#7ecfff;">(I'll give you your maths questions!)</span></li>
+                <li><span>Can I have a snack?</span> <span style="color:#7ecfff;">(I'll check if you've finished your work first!)</span></li>
+                <li><span>I finished my piano practice.</span> <span style="color:#7ecfff;">(Great job! I'll mark it as done.)</span></li>
+            </ul>
+        </div>
+        <div style="text-align:center;">
+            <input type="text" id="chatInput" placeholder="Type your question..." style="width:70%;padding:0.5rem;display:inline-block;">
+            <button id="sendChatBtn" style="display:inline-block;">Send</button>
+        </div>
+        <div id="chatDisplay" style="background:#2196f3;min-height:120px;padding:1rem;margin:1.5rem auto 0 auto;border-radius:8px;max-width:500px;color:#fff;text-align:center;"></div>
+    </div>
+</div>
+
+    <!-- Parent Homework Override Section (moved to very bottom) -->
+    <div id="parentOverrideSection" style="max-width:900px;margin:2.5rem auto 1.5rem auto;padding:1rem;background:#fff3cd;color:#856404;border-radius:8px;box-shadow:0 2px 8px #0f202720;">
+        <h3 style="margin-top:0;">Parent Homework Override</h3>
+        <label for="parentHomeworkInput">Enter or update today's homework (will replace the default):</label><br>
+        <textarea id="parentHomeworkInput" rows="3" style="width:90%;margin:0.5rem 0;"></textarea><br>
+        <button id="saveParentHomeworkBtn" style="background:#ffe066;color:#856404;border:none;padding:0.5rem 1.5rem;border-radius:6px;cursor:pointer;">Save</button>
+        <span id="parentHomeworkStatus" style="margin-left:1rem;font-size:1rem;"></span>
     </div>
     <script src="script.js"></script>
 </body>
