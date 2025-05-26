@@ -1,5 +1,13 @@
-// --- SQLite DB Setup ---
+import express from 'express';
+import fetch from 'node-fetch';
+import cors from 'cors';
 import Database from 'better-sqlite3';
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// --- SQLite DB Setup ---
 const db = new Database('chatbot.db');
 
 // Create tables if not exist
@@ -34,6 +42,13 @@ function getLatestParentReply() {
   return db.prepare('SELECT * FROM parent_reply LIMIT 1').get();
 }
 
+import express from 'express';
+import fetch from 'node-fetch';
+import cors from 'cors';
+
+app.use(cors());
+app.use(express.json());
+
 // Endpoint to set parent homework override
 app.post('/api/parent-homework-override', (req, res) => {
   const { homework } = req.body;
@@ -54,17 +69,11 @@ app.get('/api/parent-homework-override', (req, res) => {
     res.json({ homework: null });
   }
 });
-
-import express from 'express';
-import fetch from 'node-fetch';
-import cors from 'cors';
 import twilio from 'twilio';
 import dotenv from 'dotenv';
 dotenv.config();
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+
 
 // --- No in-memory parent reply, use DB ---
 
