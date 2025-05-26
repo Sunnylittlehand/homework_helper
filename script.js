@@ -4,10 +4,13 @@ const saveParentHomeworkBtn = document.getElementById('saveParentHomeworkBtn');
 const parentHomeworkStatus = document.getElementById('parentHomeworkStatus');
 let parentHomeworkOverride = null;
 
+// --- API Base URL for backend ---
+const API_BASE = "https://homework-helper-6fwt.onrender.com";
+
 // Fetch override on load
 async function fetchParentHomeworkOverride() {
   try {
-    const res = await fetch('http://localhost:3001/api/parent-homework-override');
+    const res = await fetch(`${API_BASE}/api/parent-homework-override`);
     const data = await res.json();
     if (data && data.homework) {
       parentHomeworkOverride = data.homework;
@@ -25,7 +28,7 @@ async function fetchParentHomeworkOverride() {
 saveParentHomeworkBtn.addEventListener('click', async () => {
   const homework = parentHomeworkInput.value.trim();
   try {
-    const res = await fetch('http://localhost:3001/api/parent-homework-override', {
+    const res = await fetch(`${API_BASE}/api/parent-homework-override`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ homework })
@@ -49,7 +52,7 @@ fetchParentHomeworkOverride();
 let lastParentReply = null;
 async function pollParentReply() {
   try {
-    const response = await fetch('http://localhost:3001/api/parent-reply');
+    const response = await fetch(`${API_BASE}/api/parent-reply`);
     const data = await response.json();
     console.log('[Parent Reply Poll]', data); // Debug log
     if (data.body && (!lastParentReply || lastParentReply.body !== data.body || lastParentReply.timestamp !== data.timestamp)) {
@@ -83,7 +86,7 @@ async function callHuggingFaceLLM(userMsg) {
   appendChatMessage('You', userMsg);
   appendChatMessage('Bot', '<em>Thinking...</em>');
   try {
-    const response = await fetch('http://localhost:3001/api/chat', {
+    const response = await fetch(`${API_BASE}/api/chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
