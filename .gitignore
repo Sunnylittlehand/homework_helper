@@ -1,0 +1,15 @@
+
+# Node.js dependencies
+node_modules/
+
+# Environment variables and secrets
+.env
+
+# SQLite database
+chatbot.db
+
+# macOS system files
+.DS_Store
+
+# VS Code settings (optional)
+.vscode/
