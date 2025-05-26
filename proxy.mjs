@@ -42,10 +42,6 @@ function getLatestParentReply() {
   return db.prepare('SELECT * FROM parent_reply LIMIT 1').get();
 }
 
-import express from 'express';
-import fetch from 'node-fetch';
-import cors from 'cors';
-
 app.use(cors());
 app.use(express.json());
 
