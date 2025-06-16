@@ -13,13 +13,35 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
+
+// Environment variables
+const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
+const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
+const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM;
+const TWILIO_WHATSAPP_TO = process.env.TWILIO_WHATSAPP_TO;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+// Check if Twilio is configured
+const isTwilioConfigured = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_WHATSAPP_FROM && TWILIO_WHATSAPP_TO;
+const twilioClient = isTwilioConfigured ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) : null;
+
+// System prompt for OpenAI
+const systemPrompt = `You are a helpful homework assistant for children. You should:
+1. Help with homework questions in a clear, friendly way
+2. Encourage good study habits
+3. Be patient and supportive
+4. Use simple language appropriate for children
+5. When asked about playing games or screen time, explain that you need to ask their parent first`;
+
+// Middleware
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 
-// Serve static files from the root directory
+// Serve static files
 app.use(express.static(path.join(__dirname)));
 
-// Add cache control headers
+// Cache control for CSS files
 app.use((req, res, next) => {
   if (req.path.endsWith('.css')) {
     res.set('Cache-Control', 'no-cache');
@@ -61,55 +83,61 @@ db.prepare(`CREATE TABLE IF NOT EXISTS permission_questions (
 
 // Helper functions for DB
 function setParentHomeworkOverride(homework, from_source = 'ui') {
-  const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+  const today = new Date().toISOString().split('T')[0];
   db.prepare('DELETE FROM parent_homework_override').run();
   db.prepare('INSERT INTO parent_homework_override (homework, timestamp, from_source, override_date) VALUES (?, ?, ?, ?)')
     .run(homework, Date.now(), from_source, today);
 }
+
 function getParentHomeworkOverride() {
-  const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+  const today = new Date().toISOString().split('T')[0];
   const override = db.prepare('SELECT * FROM parent_homework_override LIMIT 1').get();
-  
-  // If no override exists or it's from a different day, return null
   if (!override || override.override_date !== today) {
     return null;
   }
-  
   return override;
 }
+
 function setLatestParentReply(from, body) {
   db.prepare('DELETE FROM parent_reply').run();
   db.prepare('INSERT INTO parent_reply (from_number, body, timestamp) VALUES (?, ?, ?)')
     .run(from, body, Date.now());
 }
+
 function getLatestParentReply() {
   return db.prepare('SELECT * FROM parent_reply LIMIT 1').get();
 }
+
 function recordPermissionQuestion(question) {
   return db.prepare('INSERT INTO permission_questions (question, asked_at, status) VALUES (?, ?, ?)')
     .run(question, Date.now(), 'pending');
 }
+
 function updateWithParentReply(from, body) {
-  // Get the most recent pending question
   const pendingQuestion = db.prepare('SELECT * FROM permission_questions WHERE status = "pending" ORDER BY asked_at DESC LIMIT 1').get();
-  
   if (pendingQuestion) {
-    // Update it with the parent's reply
     db.prepare('UPDATE permission_questions SET parent_reply = ?, answered_at = ?, status = ? WHERE id = ?')
       .run(body, Date.now(), 'answered', pendingQuestion.id);
-    
-    // Also update the parent_reply table for backward compatibility
     setLatestParentReply(from, body);
-    
     return pendingQuestion.question;
   }
-  
-  // If no pending question, just update the parent_reply table
   setLatestParentReply(from, body);
   return null;
 }
 
-// Endpoint to set parent homework override
+// API Routes
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: {
+      OPENAI_API_KEY: OPENAI_API_KEY ? 'Present' : 'Missing',
+      TWILIO_CONFIGURED: isTwilioConfigured ? 'Yes' : 'No',
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    }
+  });
+});
+
 app.post('/api/parent-homework-override', (req, res) => {
   const { homework } = req.body;
   if (typeof homework === 'string') {
@@ -120,7 +148,6 @@ app.post('/api/parent-homework-override', (req, res) => {
   }
 });
 
-// Endpoint to get parent homework override
 app.get('/api/parent-homework-override', (req, res) => {
   const override = getParentHomeworkOverride();
   if (override) {
@@ -135,37 +162,29 @@ app.get('/api/parent-homework-override', (req, res) => {
   }
 });
 
-// --- No in-memory parent reply, use DB ---
-
-// Endpoint for Twilio to POST incoming WhatsApp messages (parent replies)
-app.post('/api/whatsapp-reply', express.urlencoded({ extended: false }), (req, res) => {
+app.post('/api/whatsapp-reply', (req, res) => {
   const from = req.body.From;
   const body = req.body.Body;
   console.log('[WHATSAPP BOT] Incoming WhatsApp reply from', from, ':', body);
 
-  // If the message is about homework, set as override (e.g. starts with 'homework:' or 'hw:')
   const homeworkMatch = body.match(/^(homework|hw)\s*[:\-]?\s*(.+)$/i);
   if (homeworkMatch) {
     const homeworkText = homeworkMatch[2].trim();
     setParentHomeworkOverride(homeworkText, 'whatsapp');
     setLatestParentReply(from, `Set today's homework: ${homeworkText}`);
   } else {
-    // Check if this is a reply to a permission question
     const relatedQuestion = updateWithParentReply(from, body);
     if (relatedQuestion) {
       console.log(`[WHATSAPP BOT] Received reply to question: "${relatedQuestion}"`);
     } else {
-      // Just a regular message
       setLatestParentReply(from, body);
     }
   }
-  // Respond to Twilio (must return 200 OK)
   res.set('Content-Type', 'text/xml');
   res.send('<Response></Response>');
 });
 
-// Endpoint to simulate parent replies (for testing without WhatsApp)
-app.post('/api/simulate-parent-reply', express.json(), (req, res) => {
+app.post('/api/simulate-parent-reply', (req, res) => {
   const { reply } = req.body;
   if (typeof reply === 'string') {
     updateWithParentReply('SIMULATED', reply);
@@ -175,7 +194,6 @@ app.post('/api/simulate-parent-reply', express.json(), (req, res) => {
   }
 });
 
-// Endpoint for frontend to fetch the latest parent reply
 app.get('/api/parent-reply', (req, res) => {
   const reply = getLatestParentReply();
   if (reply) {
@@ -185,21 +203,9 @@ app.get('/api/parent-reply', (req, res) => {
   }
 });
 
-const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
-const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
-const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM;
-const TWILIO_WHATSAPP_TO = process.env.TWILIO_WHATSAPP_TO;
-
-// Check if Twilio is configured
-const isTwilioConfigured = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_WHATSAPP_FROM && TWILIO_WHATSAPP_TO;
-const twilioClient = isTwilioConfigured ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) : null;
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
 app.post('/api/chat', async (req, res) => {
   const userMsg = req.body.inputs;
 
-  // Check if OpenAI is configured
   if (!OPENAI_API_KEY) {
     console.error('[CHATBOT] OpenAI API key is missing');
     return res.json({ 
@@ -207,7 +213,6 @@ app.post('/api/chat', async (req, res) => {
     });
   }
 
-  // Detect Minecraft/permission questions
   const permissionPatterns = [
     /can i play minecraft/i,
     /can i play roblox/i,
@@ -225,11 +230,8 @@ app.post('/api/chat', async (req, res) => {
   
   if (permissionPatterns.some(re => re.test(userMsg))) {
     console.log('[CHATBOT] Permission question detected:', userMsg);
-    
-    // Record the question in our database
     recordPermissionQuestion(userMsg);
     
-    // Send WhatsApp message to parent if Twilio is configured
     if (isTwilioConfigured) {
       try {
         const msg = await twilioClient.messages.create({
@@ -244,12 +246,10 @@ app.post('/api/chat', async (req, res) => {
         res.json({ response: "I'm having trouble reaching your parent right now. Please try asking them directly." });
       }
     } else {
-      // If Twilio is not configured, just record the question and respond
       console.log('[CHATBOT] Twilio not configured, skipping WhatsApp notification');
       res.json({ response: "I've recorded your question. Please ask your parent directly." });
     }
   } else {
-    // Handle non-permission questions
     try {
       console.log('[OPENAI] Making API request...');
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -294,19 +294,6 @@ app.post('/api/chat', async (req, res) => {
       });
     }
   }
-});
-
-// Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: {
-      OPENAI_API_KEY: OPENAI_API_KEY ? 'Present' : 'Missing',
-      TWILIO_CONFIGURED: isTwilioConfigured ? 'Yes' : 'No',
-      NODE_ENV: process.env.NODE_ENV || 'development'
-    }
-  });
 });
 
 // Serve index.html for all other routes
