@@ -294,6 +294,19 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: {
+      OPENAI_API_KEY: OPENAI_API_KEY ? 'Present' : 'Missing',
+      TWILIO_CONFIGURED: isTwilioConfigured ? 'Yes' : 'No',
+      NODE_ENV: process.env.NODE_ENV || 'development'
+    }
+  });
+});
+
 // Add a catch-all route for the frontend
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
