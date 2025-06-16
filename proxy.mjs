@@ -170,6 +170,11 @@ function updateWithParentReply(from, body) {
 }
 
 // API Routes
+app.get('/', (req, res) => {
+  console.log('Root route requested');
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 app.get('/api/health', (req, res) => {
   console.log('Health check requested');
   res.json({
@@ -352,7 +357,7 @@ app.use((err, req, res, next) => {
 
 // Serve index.html for all other routes
 app.get('*', (req, res) => {
-  console.log('Serving index.html for path:', req.path);
+  console.log('Catch-all route requested for path:', req.path);
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
