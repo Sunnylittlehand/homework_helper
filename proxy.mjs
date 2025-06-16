@@ -38,7 +38,14 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
+
 // Serve static files
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.static(__dirname));
 
 // Cache control for CSS files
@@ -164,13 +171,17 @@ function updateWithParentReply(from, body) {
 
 // API Routes
 app.get('/api/health', (req, res) => {
+  console.log('Health check requested');
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
     environment: {
       OPENAI_API_KEY: OPENAI_API_KEY ? 'Present' : 'Missing',
       TWILIO_CONFIGURED: isTwilioConfigured ? 'Yes' : 'No',
-      NODE_ENV: process.env.NODE_ENV || 'development'
+      NODE_ENV: process.env.NODE_ENV || 'development',
+      PORT: process.env.PORT || 3001,
+      PWD: process.cwd(),
+      __dirname: __dirname
     }
   });
 });
@@ -336,11 +347,12 @@ app.post('/api/chat', async (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('[SERVER] Error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(500).json({ error: 'Internal server error', details: err.message });
 });
 
 // Serve index.html for all other routes
 app.get('*', (req, res) => {
+  console.log('Serving index.html for path:', req.path);
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
@@ -350,6 +362,9 @@ app.listen(PORT, () => {
   console.log('Environment:', {
     OPENAI_API_KEY: OPENAI_API_KEY ? 'Present' : 'Missing',
     TWILIO_CONFIGURED: isTwilioConfigured ? 'Yes' : 'No',
-    NODE_ENV: process.env.NODE_ENV || 'development'
+    NODE_ENV: process.env.NODE_ENV || 'development',
+    PORT: PORT,
+    PWD: process.cwd(),
+    __dirname: __dirname
   });
 });
