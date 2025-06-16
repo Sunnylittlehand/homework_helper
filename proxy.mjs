@@ -4,11 +4,32 @@ import cors from 'cors';
 import Database from 'better-sqlite3';
 import twilio from 'twilio';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname)); // Serve static files from the current directory
+
+// Add cache control headers
+app.use((req, res, next) => {
+  if (req.path.endsWith('.css')) {
+    res.set('Cache-Control', 'no-cache');
+  }
+  next();
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('[SERVER] Error:', err);
+  res.status(500).json({ error: 'Internal server error' });
+});
 
 // --- SQLite DB Setup ---
 const db = new Database('chatbot.db');
@@ -273,5 +294,16 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// Add a catch-all route for the frontend
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => console.log(`Proxy server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+  console.log('Environment:', {
+    OPENAI_API_KEY: OPENAI_API_KEY ? 'Present' : 'Missing',
+    TWILIO_CONFIGURED: isTwilioConfigured ? 'Yes' : 'No'
+  });
+});
