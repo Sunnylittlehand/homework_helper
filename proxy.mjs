@@ -50,75 +50,116 @@ app.use((req, res, next) => {
 });
 
 // --- SQLite DB Setup ---
-const db = new Database('chatbot.db');
+let db;
+try {
+  db = new Database('chatbot.db');
+  
+  // Create tables if not exist
+  db.prepare(`CREATE TABLE IF NOT EXISTS parent_homework_override (
+    id INTEGER PRIMARY KEY,
+    homework TEXT,
+    timestamp INTEGER,
+    from_source TEXT,
+    override_date TEXT
+  )`).run();
 
-// Create tables if not exist
-db.prepare(`CREATE TABLE IF NOT EXISTS parent_homework_override (
-  id INTEGER PRIMARY KEY,
-  homework TEXT,
-  timestamp INTEGER,
-  from_source TEXT,
-  override_date TEXT
-)`).run();
+  db.prepare(`CREATE TABLE IF NOT EXISTS parent_reply (
+    id INTEGER PRIMARY KEY,
+    from_number TEXT,
+    body TEXT,
+    timestamp INTEGER
+  )`).run();
 
-db.prepare(`CREATE TABLE IF NOT EXISTS parent_reply (
-  id INTEGER PRIMARY KEY,
-  from_number TEXT,
-  body TEXT,
-  timestamp INTEGER
-)`).run();
-
-db.prepare(`CREATE TABLE IF NOT EXISTS permission_questions (
-  id INTEGER PRIMARY KEY,
-  question TEXT,
-  asked_at INTEGER,
-  answered_at INTEGER,
-  parent_reply TEXT,
-  status TEXT
-)`).run();
+  db.prepare(`CREATE TABLE IF NOT EXISTS permission_questions (
+    id INTEGER PRIMARY KEY,
+    question TEXT,
+    asked_at INTEGER,
+    answered_at INTEGER,
+    parent_reply TEXT,
+    status TEXT
+  )`).run();
+} catch (error) {
+  console.error('Database initialization error:', error);
+  // Continue without database functionality
+  db = null;
+}
 
 // Helper functions
 function setParentHomeworkOverride(homework, from_source = 'ui') {
-  const today = new Date().toISOString().split('T')[0];
-  db.prepare('DELETE FROM parent_homework_override').run();
-  db.prepare('INSERT INTO parent_homework_override (homework, timestamp, from_source, override_date) VALUES (?, ?, ?, ?)')
-    .run(homework, Date.now(), from_source, today);
+  if (!db) return;
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    db.prepare('DELETE FROM parent_homework_override').run();
+    db.prepare('INSERT INTO parent_homework_override (homework, timestamp, from_source, override_date) VALUES (?, ?, ?, ?)')
+      .run(homework, Date.now(), from_source, today);
+  } catch (error) {
+    console.error('Error setting homework override:', error);
+  }
 }
 
 function getParentHomeworkOverride() {
-  const today = new Date().toISOString().split('T')[0];
-  const override = db.prepare('SELECT * FROM parent_homework_override LIMIT 1').get();
-  if (!override || override.override_date !== today) {
+  if (!db) return null;
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const override = db.prepare('SELECT * FROM parent_homework_override LIMIT 1').get();
+    if (!override || override.override_date !== today) {
+      return null;
+    }
+    return override;
+  } catch (error) {
+    console.error('Error getting homework override:', error);
     return null;
   }
-  return override;
 }
 
 function setLatestParentReply(from, body) {
-  db.prepare('DELETE FROM parent_reply').run();
-  db.prepare('INSERT INTO parent_reply (from_number, body, timestamp) VALUES (?, ?, ?)')
-    .run(from, body, Date.now());
+  if (!db) return;
+  try {
+    db.prepare('DELETE FROM parent_reply').run();
+    db.prepare('INSERT INTO parent_reply (from_number, body, timestamp) VALUES (?, ?, ?)')
+      .run(from, body, Date.now());
+  } catch (error) {
+    console.error('Error setting parent reply:', error);
+  }
 }
 
 function getLatestParentReply() {
-  return db.prepare('SELECT * FROM parent_reply LIMIT 1').get();
+  if (!db) return null;
+  try {
+    return db.prepare('SELECT * FROM parent_reply LIMIT 1').get();
+  } catch (error) {
+    console.error('Error getting parent reply:', error);
+    return null;
+  }
 }
 
 function recordPermissionQuestion(question) {
-  return db.prepare('INSERT INTO permission_questions (question, asked_at, status) VALUES (?, ?, ?)')
-    .run(question, Date.now(), 'pending');
+  if (!db) return;
+  try {
+    return db.prepare('INSERT INTO permission_questions (question, asked_at, status) VALUES (?, ?, ?)')
+      .run(question, Date.now(), 'pending');
+  } catch (error) {
+    console.error('Error recording permission question:', error);
+    return null;
+  }
 }
 
 function updateWithParentReply(from, body) {
-  const pendingQuestion = db.prepare('SELECT * FROM permission_questions WHERE status = "pending" ORDER BY asked_at DESC LIMIT 1').get();
-  if (pendingQuestion) {
-    db.prepare('UPDATE permission_questions SET parent_reply = ?, answered_at = ?, status = ? WHERE id = ?')
-      .run(body, Date.now(), 'answered', pendingQuestion.id);
+  if (!db) return null;
+  try {
+    const pendingQuestion = db.prepare('SELECT * FROM permission_questions WHERE status = "pending" ORDER BY asked_at DESC LIMIT 1').get();
+    if (pendingQuestion) {
+      db.prepare('UPDATE permission_questions SET parent_reply = ?, answered_at = ?, status = ? WHERE id = ?')
+        .run(body, Date.now(), 'answered', pendingQuestion.id);
+      setLatestParentReply(from, body);
+      return pendingQuestion.question;
+    }
     setLatestParentReply(from, body);
-    return pendingQuestion.question;
+    return null;
+  } catch (error) {
+    console.error('Error updating parent reply:', error);
+    return null;
   }
-  setLatestParentReply(from, body);
-  return null;
 }
 
 // API Routes
