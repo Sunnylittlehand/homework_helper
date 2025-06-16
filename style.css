@@ -1,7 +1,7 @@
 body {
-    font-family: 'Comic Sans MS', 'Comic Sans', 'Chalkboard SE', 'Comic Neue', cursive, sans-serif;
-    background: linear-gradient(135deg, #0f2027 0%, #2c5364 50%, #1e3c72 100%);
-    color: #f0f8ff;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #e2e8f0;
     margin: 0;
     padding: 2rem;
     min-height: 100vh;
@@ -16,29 +16,33 @@ h1, p, #getHomeworkBtn, #homeworkDisplay, #chatbotSection {
 }
 
 #getHomeworkBtn {
-    font-size: 2.5rem;
-    padding: 1rem 2.5rem;
-    border-radius: 1.5rem;
-    background: #7ecfff;
-    color: #0f2027;
+    font-size: 1.25rem;
+    padding: 0.75rem 1.5rem;
+    border-radius: 0.5rem;
+    background: #4f46e5;
+    color: #ffffff;
     border: none;
-    box-shadow: 0 4px 16px rgba(30,60,114,0.15);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     cursor: pointer;
     margin: 1.5rem 0;
-    transition: background 0.2s, transform 0.2s;
+    transition: all 0.2s ease;
+    font-weight: 500;
 }
+
 #getHomeworkBtn:hover {
-    background: #4eb5e5;
-    transform: scale(1.05);
+    background: #4338ca;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 h1 {
-    color: #7ecfff;
-    text-shadow: 0 2px 8px #0f2027;
-    font-family: 'Comic Sans MS', 'Comic Sans', 'Chalkboard SE', 'Comic Neue', cursive, sans-serif;
-    letter-spacing: 2px;
-    font-size: 3rem;
-    font-weight: bold;
+    color: #ffffff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    letter-spacing: -0.5px;
+    font-size: 2.5rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
 }
 
 body::before {
@@ -46,16 +50,21 @@ body::before {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
     pointer-events: none;
-    background: url('https://www.transparenttextures.com/patterns/stardust.png');
-    opacity: 0.25;
+    background: url('https://www.transparenttextures.com/patterns/subtle-dots.png');
+    opacity: 0.1;
     z-index: 0;
 }
 
 #chatbotSection {
-ß    max-width: 900px;
+    max-width: 900px;
     margin: 0 auto;
     position: relative;
     z-index: 1;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
 }
 
 #homeworkDisplay {
@@ -64,8 +73,70 @@ body::before {
     position: relative;
     z-index: 1;
     text-align: left;
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(10px);
+    border-radius: 1rem;
+    padding: 1.5rem;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
 }
+
 #homeworkDisplay ul {
     text-align: left;
     margin-left: 2.5em;
+    color: #e2e8f0;
+}
+
+/* Add styles for chat messages */
+.chat-message {
+    margin: 0.75rem 0;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    max-width: 80%;
+}
+
+.user-message {
+    background: #4f46e5;
+    color: white;
+    margin-left: auto;
+}
+
+.bot-message {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e2e8f0;
+    margin-right: auto;
+}
+
+/* Style for input field */
+#userInput {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 0.5rem;
+    color: #e2e8f0;
+    padding: 0.75rem 1rem;
+    width: 100%;
+    margin-top: 1rem;
+    font-family: inherit;
+}
+
+#userInput:focus {
+    outline: none;
+    border-color: #4f46e5;
+    box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+}
+
+/* Style for send button */
+#sendBtn {
+    background: #4f46e5;
+    color: white;
+    border: none;
+    border-radius: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    margin-top: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+#sendBtn:hover {
+    background: #4338ca;
+    transform: translateY(-1px);
 }
