@@ -356,14 +356,18 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// Get port from environment variable or use default
+const PORT = process.env.PORT || 10000;
+const HOST = '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+  console.log(`Server running at http://${HOST}:${PORT}`);
   console.log('Environment:', {
     OPENAI_API_KEY: OPENAI_API_KEY ? 'Present' : 'Missing',
     TWILIO_CONFIGURED: isTwilioConfigured ? 'Yes' : 'No',
     NODE_ENV: process.env.NODE_ENV || 'development',
     PORT: PORT,
+    HOST: HOST,
     PWD: process.cwd(),
     __dirname: __dirname
   });
