@@ -161,6 +161,14 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 app.post('/api/chat', async (req, res) => {
   const userMsg = req.body.inputs;
 
+  // Check if OpenAI is configured
+  if (!OPENAI_API_KEY) {
+    console.error('[CHATBOT] OpenAI API key is missing');
+    return res.json({ 
+      response: "I'm sorry, I'm not fully configured right now. Please check the Render environment variables and try again later." 
+    });
+  }
+
   // Detect Minecraft/permission questions
   const permissionPatterns = [
     /can i play minecraft/i,
@@ -204,48 +212,8 @@ app.post('/api/chat', async (req, res) => {
     }
   } else {
     // Handle non-permission questions
-    if (!OPENAI_API_KEY) {
-      res.json({ response: "I'm sorry, I'm not fully configured right now. Please try again later." });
-      return;
-    }
-    
-    // Block inappropriate or out-of-scope topics for a 9-year-old
-    const forbiddenPatterns = [
-      /inappropriate|violence|drugs|alcohol|sex|gambling|dating|suicide|self-harm|kill|murder|weapon|gun|shoot|blood|scary|horror|creep|curse|swear|bad word|adult|nude|naked|death|die|terror/i
-    ];
-    if (forbiddenPatterns.some(re => re.test(userMsg))) {
-      return res.json({ generated_text: "Sorry, I can't talk about that. Let's chat about homework, fun facts, or something else!" });
-    }
-
-    // Detect homework-related questions
-    const homeworkPatterns = [
-      /what('?s| is) my homework/i,
-      /today'?s homework/i,
-      /homework for today/i,
-      /do i have homework/i,
-      /what do i need to do/i,
-      /what are my assignments/i
-    ];
-    let parentOverrideMsg = null;
-    const dbOverride = getParentHomeworkOverride();
-    if (dbOverride && dbOverride.homework && homeworkPatterns.some(re => re.test(userMsg))) {
-      parentOverrideMsg =
-        `Note for the assistant: The parent has set a custom homework override for today. ` +
-        `Here is the parent's homework for today: ${dbOverride.homework}`;
-    }
-
-    // System prompt for a brief, easy, patient, and humorous 9-year-old-friendly chatbot
-    let systemPrompt =
-      "You are a friendly, patient, and humorous homework helper for a 9-year-old. " +
-      "Always keep your answers brief (1-3 sentences), easy to understand, and appropriate for a child. " +
-      "Never discuss scary, violent, or adult topics. If asked something inappropriate, gently refuse. " +
-      "Use simple words, and add a touch of humor or encouragement when possible.";
-    if (parentOverrideMsg) {
-      systemPrompt += "\n" + parentOverrideMsg;
-    }
-
     try {
-      console.log('[OPENAI] Making API request with key:', OPENAI_API_KEY ? 'Present' : 'Missing');
+      console.log('[OPENAI] Making API request...');
       const response = await fetch('https://api.openai.com/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -262,18 +230,30 @@ app.post('/api/chat', async (req, res) => {
           temperature: 0.7
         })
       });
+      
       console.log('[OPENAI] Response status:', response.status);
       const data = await response.json();
-      console.log('[OPENAI] Response data:', JSON.stringify(data, null, 2));
+      
+      if (response.status === 401) {
+        console.error('[OPENAI] Authentication error - check API key');
+        return res.json({ 
+          response: "I'm having trouble connecting to my brain right now. Please check the OpenAI API key in Render environment variables." 
+        });
+      }
+      
       if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
         res.json({ generated_text: data.choices[0].message.content });
       } else {
         console.error('[OPENAI] Error in response:', data.error || 'Unknown error');
-        res.status(500).json({ error: 'OpenAI API error: ' + (data.error?.message || 'Unknown error') });
+        res.json({ 
+          response: "I'm having trouble thinking right now. Please try again later." 
+        });
       }
     } catch (e) {
       console.error('[OPENAI] Network error:', e.message);
-      res.status(500).json({ error: 'Server error: ' + e.message });
+      res.json({ 
+        response: "I'm having trouble connecting to my brain right now. Please try again later." 
+      });
     }
   }
 });
