@@ -1,9 +1,10 @@
-
 import express from 'express';
 import fetch from 'node-fetch';
 import cors from 'cors';
 import Database from 'better-sqlite3';
-
+import twilio from 'twilio';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const app = express();
 app.use(cors());
@@ -75,8 +76,6 @@ function updateWithParentReply(from, body) {
   return null;
 }
 
-
-
 // Endpoint to set parent homework override
 app.post('/api/parent-homework-override', (req, res) => {
   const { homework } = req.body;
@@ -97,16 +96,10 @@ app.get('/api/parent-homework-override', (req, res) => {
     res.json({ homework: null });
   }
 });
-import twilio from 'twilio';
-import dotenv from 'dotenv';
-dotenv.config();
-
-
 
 // --- No in-memory parent reply, use DB ---
 
 // Endpoint for Twilio to POST incoming WhatsApp messages (parent replies)
-
 app.post('/api/whatsapp-reply', express.urlencoded({ extended: false }), (req, res) => {
   const from = req.body.From;
   const body = req.body.Body;
@@ -154,19 +147,18 @@ app.get('/api/parent-reply', (req, res) => {
   }
 });
 
-
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const TWILIO_WHATSAPP_FROM = process.env.TWILIO_WHATSAPP_FROM;
 const TWILIO_WHATSAPP_TO = process.env.TWILIO_WHATSAPP_TO;
-const twilioClient = twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN);
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY; // Store your OpenAI key in .env
+// Check if Twilio is configured
+const isTwilioConfigured = TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_WHATSAPP_FROM && TWILIO_WHATSAPP_TO;
+const twilioClient = isTwilioConfigured ? twilio(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN) : null;
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 app.post('/api/chat', async (req, res) => {
-  // Debug: log Twilio env variables
-  console.log('TWILIO_WHATSAPP_FROM:', TWILIO_WHATSAPP_FROM);
-  console.log('TWILIO_WHATSAPP_TO:', TWILIO_WHATSAPP_TO);
   const userMsg = req.body.inputs;
 
   // Detect Minecraft/permission questions
@@ -184,91 +176,105 @@ app.post('/api/chat', async (req, res) => {
     /can i have a snack/i,
     /can i eat/i
   ];
+  
   if (permissionPatterns.some(re => re.test(userMsg))) {
-    // Log that a permission question was detected
-    console.log('[WHATSAPP BOT] Permission question detected:', userMsg);
+    console.log('[CHATBOT] Permission question detected:', userMsg);
     
     // Record the question in our database
     recordPermissionQuestion(userMsg);
     
-    // Send WhatsApp message to parent
-    try {
-      if (!TWILIO_WHATSAPP_FROM || !TWILIO_WHATSAPP_TO) {
-        console.error('[WHATSAPP BOT] Twilio WhatsApp FROM or TO is missing');
-        throw new Error('Twilio WhatsApp FROM or TO is missing');
+    // Send WhatsApp message to parent if Twilio is configured
+    if (isTwilioConfigured) {
+      try {
+        const msg = await twilioClient.messages.create({
+          from: `whatsapp:${TWILIO_WHATSAPP_FROM}`,
+          to: `whatsapp:${TWILIO_WHATSAPP_TO}`,
+          body: `Your child asked: "${userMsg}"`
+        });
+        console.log('[WHATSAPP BOT] Message sent:', msg.sid);
+        res.json({ response: "I've asked your parent about this. Please wait for their reply." });
+      } catch (error) {
+        console.error('[WHATSAPP BOT] Error sending message:', error);
+        res.json({ response: "I'm having trouble reaching your parent right now. Please try asking them directly." });
       }
-      const msg = await twilioClient.messages.create({
-        from: TWILIO_WHATSAPP_FROM,
-        to: TWILIO_WHATSAPP_TO,
-        body: `Freddie asked: "${userMsg}". Please reply to this message with your answer!`
-      });
-      console.log('[WHATSAPP BOT] WhatsApp message sent! SID:', msg.sid);
-    } catch (err) {
-      console.error('[WHATSAPP BOT] Twilio WhatsApp error:', err.message);
-    }
-    return res.json({ generated_text: "I've asked your parent! Please wait for their answer. I'll let you know as soon as they reply! 😊" });
-  }
-
-  // Block inappropriate or out-of-scope topics for a 9-year-old
-  const forbiddenPatterns = [
-    /inappropriate|violence|drugs|alcohol|sex|gambling|dating|suicide|self-harm|kill|murder|weapon|gun|shoot|blood|scary|horror|creep|curse|swear|bad word|adult|nude|naked|death|die|terror/i
-  ];
-  if (forbiddenPatterns.some(re => re.test(userMsg))) {
-    return res.json({ generated_text: "Sorry, I can't talk about that. Let's chat about homework, fun facts, or something else!" });
-  }
-
-  // Detect homework-related questions
-  const homeworkPatterns = [
-    /what('?s| is) my homework/i,
-    /today'?s homework/i,
-    /homework for today/i,
-    /do i have homework/i,
-    /what do i need to do/i,
-    /what are my assignments/i
-  ];
-  let parentOverrideMsg = null;
-  const dbOverride = getParentHomeworkOverride();
-  if (dbOverride && dbOverride.homework && homeworkPatterns.some(re => re.test(userMsg))) {
-    parentOverrideMsg =
-      `Note for the assistant: The parent has set a custom homework override for today. ` +
-      `Here is the parent's homework for today: ${dbOverride.homework}`;
-  }
-
-  // System prompt for a brief, easy, patient, and humorous 9-year-old-friendly chatbot
-  let systemPrompt =
-    "You are a friendly, patient, and humorous homework helper for a 9-year-old. " +
-    "Always keep your answers brief (1-3 sentences), easy to understand, and appropriate for a child. " +
-    "Never discuss scary, violent, or adult topics. If asked something inappropriate, gently refuse. " +
-    "Use simple words, and add a touch of humor or encouragement when possible.";
-  if (parentOverrideMsg) {
-    systemPrompt += "\n" + parentOverrideMsg;
-  }
-
-  try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMsg }
-        ],
-        max_tokens: 150,
-        temperature: 0.7
-      })
-    });
-    const data = await response.json();
-    if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
-      res.json({ generated_text: data.choices[0].message.content });
     } else {
-      res.status(500).json({ error: 'OpenAI API error: ' + (data.error?.message || 'Unknown error') });
+      // If Twilio is not configured, just record the question and respond
+      console.log('[CHATBOT] Twilio not configured, skipping WhatsApp notification');
+      res.json({ response: "I've recorded your question. Please ask your parent directly." });
     }
-  } catch (e) {
-    res.status(500).json({ error: 'Server error: ' + e.message });
+  } else {
+    // Handle non-permission questions
+    if (!OPENAI_API_KEY) {
+      res.json({ response: "I'm sorry, I'm not fully configured right now. Please try again later." });
+      return;
+    }
+    
+    // Block inappropriate or out-of-scope topics for a 9-year-old
+    const forbiddenPatterns = [
+      /inappropriate|violence|drugs|alcohol|sex|gambling|dating|suicide|self-harm|kill|murder|weapon|gun|shoot|blood|scary|horror|creep|curse|swear|bad word|adult|nude|naked|death|die|terror/i
+    ];
+    if (forbiddenPatterns.some(re => re.test(userMsg))) {
+      return res.json({ generated_text: "Sorry, I can't talk about that. Let's chat about homework, fun facts, or something else!" });
+    }
+
+    // Detect homework-related questions
+    const homeworkPatterns = [
+      /what('?s| is) my homework/i,
+      /today'?s homework/i,
+      /homework for today/i,
+      /do i have homework/i,
+      /what do i need to do/i,
+      /what are my assignments/i
+    ];
+    let parentOverrideMsg = null;
+    const dbOverride = getParentHomeworkOverride();
+    if (dbOverride && dbOverride.homework && homeworkPatterns.some(re => re.test(userMsg))) {
+      parentOverrideMsg =
+        `Note for the assistant: The parent has set a custom homework override for today. ` +
+        `Here is the parent's homework for today: ${dbOverride.homework}`;
+    }
+
+    // System prompt for a brief, easy, patient, and humorous 9-year-old-friendly chatbot
+    let systemPrompt =
+      "You are a friendly, patient, and humorous homework helper for a 9-year-old. " +
+      "Always keep your answers brief (1-3 sentences), easy to understand, and appropriate for a child. " +
+      "Never discuss scary, violent, or adult topics. If asked something inappropriate, gently refuse. " +
+      "Use simple words, and add a touch of humor or encouragement when possible.";
+    if (parentOverrideMsg) {
+      systemPrompt += "\n" + parentOverrideMsg;
+    }
+
+    try {
+      console.log('[OPENAI] Making API request with key:', OPENAI_API_KEY ? 'Present' : 'Missing');
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-3.5-turbo',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMsg }
+          ],
+          max_tokens: 150,
+          temperature: 0.7
+        })
+      });
+      console.log('[OPENAI] Response status:', response.status);
+      const data = await response.json();
+      console.log('[OPENAI] Response data:', JSON.stringify(data, null, 2));
+      if (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+        res.json({ generated_text: data.choices[0].message.content });
+      } else {
+        console.error('[OPENAI] Error in response:', data.error || 'Unknown error');
+        res.status(500).json({ error: 'OpenAI API error: ' + (data.error?.message || 'Unknown error') });
+      }
+    } catch (e) {
+      console.error('[OPENAI] Network error:', e.message);
+      res.status(500).json({ error: 'Server error: ' + e.message });
+    }
   }
 });
 
