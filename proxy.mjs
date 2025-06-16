@@ -12,8 +12,6 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
-
 // Environment variables
 const TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID;
 const TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN;
@@ -33,13 +31,15 @@ const systemPrompt = `You are a helpful homework assistant for children. You sho
 4. Use simple language appropriate for children
 5. When asked about playing games or screen time, explain that you need to ask their parent first`;
 
+const app = express();
+
 // Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 // Serve static files
-app.use(express.static(path.join(__dirname)));
+app.use(express.static(__dirname));
 
 // Cache control for CSS files
 app.use((req, res, next) => {
@@ -47,12 +47,6 @@ app.use((req, res, next) => {
     res.set('Cache-Control', 'no-cache');
   }
   next();
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('[SERVER] Error:', err);
-  res.status(500).json({ error: 'Internal server error' });
 });
 
 // --- SQLite DB Setup ---
@@ -66,12 +60,14 @@ db.prepare(`CREATE TABLE IF NOT EXISTS parent_homework_override (
   from_source TEXT,
   override_date TEXT
 )`).run();
+
 db.prepare(`CREATE TABLE IF NOT EXISTS parent_reply (
   id INTEGER PRIMARY KEY,
   from_number TEXT,
   body TEXT,
   timestamp INTEGER
 )`).run();
+
 db.prepare(`CREATE TABLE IF NOT EXISTS permission_questions (
   id INTEGER PRIMARY KEY,
   question TEXT,
@@ -81,7 +77,7 @@ db.prepare(`CREATE TABLE IF NOT EXISTS permission_questions (
   status TEXT
 )`).run();
 
-// Helper functions for DB
+// Helper functions
 function setParentHomeworkOverride(homework, from_source = 'ui') {
   const today = new Date().toISOString().split('T')[0];
   db.prepare('DELETE FROM parent_homework_override').run();
@@ -294,6 +290,12 @@ app.post('/api/chat', async (req, res) => {
       });
     }
   }
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('[SERVER] Error:', err);
+  res.status(500).json({ error: 'Internal server error' });
 });
 
 // Serve index.html for all other routes
