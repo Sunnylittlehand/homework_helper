@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parent Reply Simulator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #2196f3;
+            text-align: center;
+        }
+        .simulator-box {
+            background-color: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+        .history {
+            margin-top: 20px;
+        }
+        .history-item {
+            background-color: #f9f9f9;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            border-left: 4px solid #2196f3;
+        }
+        .quick-replies {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .quick-reply {
+            background-color: #e1f5fe;
+            border: 1px solid #b3e5fc;
+            border-radius: 20px;
+            padding: 5px 15px;
+            cursor: pointer;
+        }
+        .quick-reply:hover {
+            background-color: #b3e5fc;
+        }
+    </style>
+</head>
+<body>
+    <h1>Parent Reply Simulator</h1>
+    <p>Use this page to simulate parent WhatsApp replies for testing the Homework Helper app.</p>
+    
+    <div class="simulator-box">
+        <h2>Simulate Parent Reply</h2>
+        <div class="quick-replies">
+            <div class="quick-reply" onclick="setReply('Yes, you can play Minecraft for 30 minutes.')">Yes to Minecraft</div>
+            <div class="quick-reply" onclick="setReply('No, you need to finish your homework first.')">No to games</div>
+            <div class="quick-reply" onclick="setReply('Yes, you can have a snack.')">Yes to snack</div>
+            <div class="quick-reply" onclick="setReply('Not until you finish your piano practice.')">Conditional yes</div>
+            <div class="quick-reply" onclick="setReply('Ask me again in 30 minutes.')">Ask later</div>
+        </div>
+        <textarea id="replyText" rows="3" placeholder="Type your simulated parent reply here..."></textarea>
+        <button id="sendReplyBtn">Send Reply</button>
+        <div id="status" class="status"></div>
+    </div>
+    
+    <div class="simulator-box">
+        <h2>Recent Replies</h2>
+        <div id="replyHistory" class="history">
+            <p>No replies sent yet.</p>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : "https://homework-helper-6fwt.onrender.com";
+        const replyText = document.getElementById('replyText');
+        const sendReplyBtn = document.getElementById('sendReplyBtn');
+        const status = document.getElementById('status');
+        const replyHistory = document.getElementById('replyHistory');
+        
+        function setReply(text) {
+            replyText.value = text;
+        }
+
+        async function sendReply() {
+            const reply = replyText.value.trim();
+            if (!reply) {
+                status.className = 'status error';
+                status.textContent = 'Please enter a reply.';
+                return;
+            }
+            
+            try {
+                status.className = 'status';
+                status.textContent = 'Sending...';
+                
+                const response = await fetch(`${API_BASE}/api/simulate-parent-reply`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ reply })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    status.className = 'status success';
+                    status.textContent = 'Reply sent successfully!';
+                    
+                    // Add to history
+                    if (replyHistory.textContent === 'No replies sent yet.') {
+                        replyHistory.textContent = '';
+                    }
+                    
+                    const historyItem = document.createElement('div');
+                    historyItem.className = 'history-item';
+                    historyItem.textContent = `${new Date().toLocaleTimeString()}: "${reply}"`;
+                    replyHistory.prepend(historyItem);
+                    
+                    // Clear input
+                    replyText.value = '';
+                } else {
+                    status.className = 'status error';
+                    status.textContent = data.error || 'Failed to send reply.';
+                }
+            } catch (error) {
+                status.className = 'status error';
+                status.textContent = `Error: ${error.message}`;
+            }
+        }
+        
+        sendReplyBtn.addEventListener('click', sendReply);
+        replyText.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendReply();
+            }
+        });
+    </script>
+</body>
+</html>

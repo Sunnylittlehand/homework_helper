@@ -5,7 +5,8 @@ const parentHomeworkStatus = document.getElementById('parentHomeworkStatus');
 let parentHomeworkOverride = null;
 
 // --- API Base URL for backend ---
-const API_BASE = "https://homework-helper-6fwt.onrender.com";
+// Use localhost for local development, or Render URL for production
+const API_BASE = window.location.hostname === 'localhost' ? 'http://localhost:3001' : "https://homework-helper-6fwt.onrender.com";
 
 // Fetch override on load
 async function fetchParentHomeworkOverride() {
@@ -50,13 +51,56 @@ saveParentHomeworkBtn.addEventListener('click', async () => {
 fetchParentHomeworkOverride();
 // --- Poll for parent WhatsApp replies and show in chat ---
 let lastParentReply = null;
+
+// On page load, fetch and display the latest parent reply (if any)
+async function showInitialParentReply() {
+  try {
+    const response = await fetch(`${API_BASE}/api/parent-reply`);
+    const data = await response.json();
+    if (data.body) {
+      appendChatMessage('Parent', data.body);
+      lastParentReply = data;
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+}
+showInitialParentReply();
+
+// Format parent replies with emojis based on content
+function formatParentReply(reply) {
+  const lowerReply = reply.toLowerCase();
+  if (lowerReply.includes('yes') || lowerReply.includes('ok') || 
+      lowerReply.includes('sure') || lowerReply.includes('allowed')) {
+    return `👍 ${reply}`;
+  } else if (lowerReply.includes('no') || lowerReply.includes('not') || 
+             lowerReply.includes('cannot') || lowerReply.includes("can't")) {
+    return `👎 ${reply}`;
+  } else {
+    return `💬 ${reply}`;
+  }
+}
+
+// Poll for new parent replies
 async function pollParentReply() {
   try {
     const response = await fetch(`${API_BASE}/api/parent-reply`);
     const data = await response.json();
-    console.log('[Parent Reply Poll]', data); // Debug log
-    if (data.body && (!lastParentReply || lastParentReply.body !== data.body || lastParentReply.timestamp !== data.timestamp)) {
-      appendChatMessage('Parent', data.body);
+    if (
+      data.body &&
+      (!lastParentReply || lastParentReply.body !== data.body || lastParentReply.timestamp !== data.timestamp)
+    ) {
+      // Format the parent reply with emojis
+      const formattedReply = formatParentReply(data.body);
+      appendChatMessage('Parent', formattedReply);
+      
+      // Add a visual indicator that this is from a parent
+      const lastMessage = chatDisplay.lastChild;
+      lastMessage.style.background = '#4CAF50';
+      lastMessage.style.padding = '8px';
+      lastMessage.style.borderRadius = '8px';
+      lastMessage.style.marginTop = '10px';
+      
       lastParentReply = data;
     }
   } catch (e) {
@@ -96,12 +140,13 @@ async function callHuggingFaceLLM(userMsg) {
     const data = await response.json();
     // Remove the "Thinking..." message
     chatDisplay.removeChild(chatDisplay.lastChild);
-    if (data.error) {
-      appendChatMessage('Bot', 'Sorry, there was an error: ' + data.error);
+    // Fix: Always display the bot's response if present
+    if (data && typeof data.generated_text === 'string') {
+      appendChatMessage('Bot', data.generated_text);
     } else if (Array.isArray(data) && data[0]?.generated_text) {
       appendChatMessage('Bot', data[0].generated_text);
-    } else if (typeof data.generated_text === 'string') {
-      appendChatMessage('Bot', data.generated_text);
+    } else if (data && data.error) {
+      appendChatMessage('Bot', 'Sorry, there was an error: ' + data.error);
     } else {
       appendChatMessage('Bot', 'Sorry, I could not understand the response.');
     }

@@ -25,6 +25,14 @@ db.prepare(`CREATE TABLE IF NOT EXISTS parent_reply (
   body TEXT,
   timestamp INTEGER
 )`).run();
+db.prepare(`CREATE TABLE IF NOT EXISTS permission_questions (
+  id INTEGER PRIMARY KEY,
+  question TEXT,
+  asked_at INTEGER,
+  answered_at INTEGER,
+  parent_reply TEXT,
+  status TEXT
+)`).run();
 
 // Helper functions for DB
 function setParentHomeworkOverride(homework, from_source = 'ui') {
@@ -42,6 +50,29 @@ function setLatestParentReply(from, body) {
 }
 function getLatestParentReply() {
   return db.prepare('SELECT * FROM parent_reply LIMIT 1').get();
+}
+function recordPermissionQuestion(question) {
+  return db.prepare('INSERT INTO permission_questions (question, asked_at, status) VALUES (?, ?, ?)')
+    .run(question, Date.now(), 'pending');
+}
+function updateWithParentReply(from, body) {
+  // Get the most recent pending question
+  const pendingQuestion = db.prepare('SELECT * FROM permission_questions WHERE status = "pending" ORDER BY asked_at DESC LIMIT 1').get();
+  
+  if (pendingQuestion) {
+    // Update it with the parent's reply
+    db.prepare('UPDATE permission_questions SET parent_reply = ?, answered_at = ?, status = ? WHERE id = ?')
+      .run(body, Date.now(), 'answered', pendingQuestion.id);
+    
+    // Also update the parent_reply table for backward compatibility
+    setLatestParentReply(from, body);
+    
+    return pendingQuestion.question;
+  }
+  
+  // If no pending question, just update the parent_reply table
+  setLatestParentReply(from, body);
+  return null;
 }
 
 
@@ -88,11 +119,29 @@ app.post('/api/whatsapp-reply', express.urlencoded({ extended: false }), (req, r
     setParentHomeworkOverride(homeworkText, 'whatsapp');
     setLatestParentReply(from, `Set today's homework: ${homeworkText}`);
   } else {
-    setLatestParentReply(from, body);
+    // Check if this is a reply to a permission question
+    const relatedQuestion = updateWithParentReply(from, body);
+    if (relatedQuestion) {
+      console.log(`[WHATSAPP BOT] Received reply to question: "${relatedQuestion}"`);
+    } else {
+      // Just a regular message
+      setLatestParentReply(from, body);
+    }
   }
   // Respond to Twilio (must return 200 OK)
   res.set('Content-Type', 'text/xml');
   res.send('<Response></Response>');
+});
+
+// Endpoint to simulate parent replies (for testing without WhatsApp)
+app.post('/api/simulate-parent-reply', express.json(), (req, res) => {
+  const { reply } = req.body;
+  if (typeof reply === 'string') {
+    updateWithParentReply('SIMULATED', reply);
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ success: false, error: 'Missing or invalid reply' });
+  }
 });
 
 // Endpoint for frontend to fetch the latest parent reply
@@ -124,16 +173,24 @@ app.post('/api/chat', async (req, res) => {
   const permissionPatterns = [
     /can i play minecraft/i,
     /can i play roblox/i,
-    /can i play a game/i,
-    /can i play on the computer/i,
+    /can i play (a )?(game|video game)/i,
+    /can i (use|play on) the (computer|pc|laptop)/i,
     /can i play video games/i,
     /can I have a playdate/i,
-    /can i watch tv/i,
-    /can i have more screen time/i
+    /can i watch (tv|television|youtube|videos)/i,
+    /can i have (more )?(screen time|device time)/i,
+    /am i allowed to play/i,
+    /is it ok (for me )?to play/i,
+    /can i have a snack/i,
+    /can i eat/i
   ];
   if (permissionPatterns.some(re => re.test(userMsg))) {
     // Log that a permission question was detected
     console.log('[WHATSAPP BOT] Permission question detected:', userMsg);
+    
+    // Record the question in our database
+    recordPermissionQuestion(userMsg);
+    
     // Send WhatsApp message to parent
     try {
       if (!TWILIO_WHATSAPP_FROM || !TWILIO_WHATSAPP_TO) {
@@ -143,13 +200,13 @@ app.post('/api/chat', async (req, res) => {
       const msg = await twilioClient.messages.create({
         from: TWILIO_WHATSAPP_FROM,
         to: TWILIO_WHATSAPP_TO,
-        body: `Freddie asked: "${userMsg}". Please reply to him directly!`
+        body: `Freddie asked: "${userMsg}". Please reply to this message with your answer!`
       });
       console.log('[WHATSAPP BOT] WhatsApp message sent! SID:', msg.sid);
     } catch (err) {
       console.error('[WHATSAPP BOT] Twilio WhatsApp error:', err.message);
     }
-    return res.json({ generated_text: "I've asked your parent! Please wait for their answer. 😊" });
+    return res.json({ generated_text: "I've asked your parent! Please wait for their answer. I'll let you know as soon as they reply! 😊" });
   }
 
   // Block inappropriate or out-of-scope topics for a 9-year-old
