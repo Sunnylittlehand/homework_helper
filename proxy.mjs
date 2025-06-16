@@ -18,7 +18,8 @@ db.prepare(`CREATE TABLE IF NOT EXISTS parent_homework_override (
   id INTEGER PRIMARY KEY,
   homework TEXT,
   timestamp INTEGER,
-  from_source TEXT
+  from_source TEXT,
+  override_date TEXT
 )`).run();
 db.prepare(`CREATE TABLE IF NOT EXISTS parent_reply (
   id INTEGER PRIMARY KEY,
@@ -37,12 +38,21 @@ db.prepare(`CREATE TABLE IF NOT EXISTS permission_questions (
 
 // Helper functions for DB
 function setParentHomeworkOverride(homework, from_source = 'ui') {
+  const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
   db.prepare('DELETE FROM parent_homework_override').run();
-  db.prepare('INSERT INTO parent_homework_override (homework, timestamp, from_source) VALUES (?, ?, ?)')
-    .run(homework, Date.now(), from_source);
+  db.prepare('INSERT INTO parent_homework_override (homework, timestamp, from_source, override_date) VALUES (?, ?, ?, ?)')
+    .run(homework, Date.now(), from_source, today);
 }
 function getParentHomeworkOverride() {
-  return db.prepare('SELECT * FROM parent_homework_override LIMIT 1').get();
+  const today = new Date().toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+  const override = db.prepare('SELECT * FROM parent_homework_override LIMIT 1').get();
+  
+  // If no override exists or it's from a different day, return null
+  if (!override || override.override_date !== today) {
+    return null;
+  }
+  
+  return override;
 }
 function setLatestParentReply(from, body) {
   db.prepare('DELETE FROM parent_reply').run();
@@ -91,7 +101,12 @@ app.post('/api/parent-homework-override', (req, res) => {
 app.get('/api/parent-homework-override', (req, res) => {
   const override = getParentHomeworkOverride();
   if (override) {
-    res.json({ homework: override.homework, timestamp: override.timestamp, from: override.from_source });
+    res.json({ 
+      homework: override.homework, 
+      timestamp: override.timestamp, 
+      from: override.from_source,
+      date: override.override_date 
+    });
   } else {
     res.json({ homework: null });
   }
